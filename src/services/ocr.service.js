@@ -38,7 +38,15 @@ const SKILL_MAP = {
 // --- Fungsi Helper Ekstraksi ---
 
 const extractEmail = (text) => text.match(/[a-zA-Z0-B9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)?.[0] || null;
-const extractPhoneNumber = (text) => text.match(/(?:\+62|62|0)8[1-9][0-9]{7,10}/g)?.[0] || null;
+// Ganti fungsi lama dengan yang ini
+const extractPhoneNumber = (text) => {
+  // Pertama, hapus semua spasi, tanda kurung, dan strip dari teks
+  const cleanedText = text.replace(/[\s()-]/g, '');
+  // Kemudian, jalankan regex pada teks yang sudah bersih
+  const phoneRegex = /(?:\+62|62|0)8[1-9][0-9]{7,10}/;
+  const match = cleanedText.match(phoneRegex);
+  return match ? match[0] : null;
+};
 const extractLinkedinUrl = (text) => text.match(/linkedin\.com\/in\/[a-zA-Z0-9_-]+/)?.[0] || null;
 
 const extractName = (text) => {
