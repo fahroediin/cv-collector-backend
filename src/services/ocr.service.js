@@ -26,28 +26,33 @@ const extractSkills = (text) => {
   return Array.from(foundSkills);
 };
 
-// --- FUNGSI PARSING BARU BERDASARKAN TEKS MENTAH ---
+// --- FUNGSI PARSING YANG DISEMPURNAKAN ---
 
 const parseExperience = (fullText) => {
     const experiences = [];
     const lines = fullText.split('\n').filter(line => line.trim());
-    // Regex ini sekarang mencari baris yang mengandung nama bulan atau "Present" DAN tahun
     const dateRegex = /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Present|Saat ini|Sept).*\d{4}/i;
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
-        const match = line.match(dateRegex);
 
+        // --- PERUBAHAN KUNCI ADA DI SINI ---
+        // Jika kita menemukan judul bagian utama, hentikan pencarian pengalaman kerja.
+        if (/^SKILLS$|^CERTIFICATES$|^EDUCATION$/i.test(line)) {
+            break;
+        }
+        // ------------------------------------
+
+        const match = line.match(dateRegex);
         if (match) {
             const date = match[0].trim();
             const company = line.replace(date, '').trim();
-            const jobTitle = lines[i + 1]?.trim() || ''; // Jabatan ada di baris SETELAH perusahaan/tanggal
+            const jobTitle = lines[i + 1]?.trim() || '';
 
             let description = '';
-            let j = i + 2; // Deskripsi dimulai 2 baris setelah perusahaan/tanggal
+            let j = i + 2;
             while (j < lines.length) {
                 const nextLine = lines[j].trim();
-                // Berhenti jika menemukan baris yang cocok dengan pola tanggal berikutnya atau judul bagian
                 if (dateRegex.test(nextLine) || /EDUCATION|SKILLS|CERTIFICATES/i.test(nextLine)) {
                     break;
                 }
@@ -74,7 +79,7 @@ const parseEducation = (fullText) => {
         if (match) {
             const date = match[0];
             const school = line.replace(date, '').trim();
-            const degree = lines[i + 1]?.trim() || ''; // Gelar ada di baris SETELAH sekolah/tanggal
+            const degree = lines[i + 1]?.trim() || '';
 
             if (school && degree) {
                 educations.push({ school, degree, date });
@@ -119,7 +124,6 @@ const extractDataFromCV = async (filePath) => {
 };
 
 module.exports = { extractDataFromCV };
-
 // // ----- KODE KHUSUS UNTUK DEBUGGING -----
 // const fs = require('fs');
 // const pdf = require('pdf-parse');
