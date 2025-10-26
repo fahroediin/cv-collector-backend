@@ -26,42 +26,51 @@ const extractSkills = (text) => {
   return Array.from(foundSkills);
 };
 
-// --- FUNGSI PARSING YANG DISEMPURNAKAN ---
+// --- FUNGSI PARSING YANG DIPERBAIKI SECARA DEFINITIF ---
 
 const parseExperience = (fullText) => {
     const experiences = [];
     const lines = fullText.split('\n').filter(line => line.trim());
     const dateRegex = /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Present|Saat ini|Sept).*\d{4}/i;
+    const sectionEndRegex = /^(EDUCATION|SKILLS|CERTIFICATES)$/i;
+
+    let inExperienceSection = false;
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
 
-        // --- PERUBAHAN KUNCI ADA DI SINI ---
-        // Jika kita menemukan judul bagian utama, hentikan pencarian pengalaman kerja.
-        if (/^SKILLS$|^CERTIFICATES$|^EDUCATION$/i.test(line)) {
+        // Mulai mencari setelah menemukan "WORK EXPERIENCE"
+        if (/^WORK EXPERIENCE$/i.test(line)) {
+            inExperienceSection = true;
+            continue;
+        }
+
+        // Berhenti mencari jika sudah menemukan bagian selanjutnya
+        if (inExperienceSection && sectionEndRegex.test(line)) {
             break;
         }
-        // ------------------------------------
 
-        const match = line.match(dateRegex);
-        if (match) {
-            const date = match[0].trim();
-            const company = line.replace(date, '').trim();
-            const jobTitle = lines[i + 1]?.trim() || '';
+        if (inExperienceSection) {
+            const match = line.match(dateRegex);
+            if (match) {
+                const date = match[0].trim();
+                const company = line.replace(date, '').trim();
+                const jobTitle = lines[i + 1]?.trim() || '';
 
-            let description = '';
-            let j = i + 2;
-            while (j < lines.length) {
-                const nextLine = lines[j].trim();
-                if (dateRegex.test(nextLine) || /EDUCATION|SKILLS|CERTIFICATES/i.test(nextLine)) {
-                    break;
+                let description = '';
+                let j = i + 2;
+                while (j < lines.length) {
+                    const nextLine = lines[j].trim();
+                    if (dateRegex.test(nextLine) || sectionEndRegex.test(nextLine)) {
+                        break;
+                    }
+                    description += nextLine + '\n';
+                    j++;
                 }
-                description += nextLine + '\n';
-                j++;
-            }
-            
-            if (company && jobTitle) {
-                experiences.push({ company, jobTitle, date, description: description.trim() });
+                
+                if (company && jobTitle) {
+                    experiences.push({ company, jobTitle, date, description: description.trim() });
+                }
             }
         }
     }
@@ -124,6 +133,7 @@ const extractDataFromCV = async (filePath) => {
 };
 
 module.exports = { extractDataFromCV };
+
 // // ----- KODE KHUSUS UNTUK DEBUGGING -----
 // const fs = require('fs');
 // const pdf = require('pdf-parse');
