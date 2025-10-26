@@ -5,9 +5,7 @@ const uploadCV = async (req, res, next) => {
     if (!req.file) {
       return res.status(400).json({ message: 'Silakan pilih file CV untuk diunggah' });
     }
-    // Proses dimulai di latar belakang (tanpa menunggu selesai)
     talentService.processUploadedCV(req.file.path);
-
     res.status(202).json({ message: 'CV berhasil diunggah dan sedang diproses' });
   } catch (error) {
     next(error);
@@ -26,7 +24,7 @@ const getTalents = async (req, res, next) => {
 const getTalentDetail = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const talent = await talentService.getTalentById(id);
+    const talent = await talentService.getTalentById(id); // Memanggil fungsi yang sudah diperbarui
     if (!talent) {
       return res.status(404).json({ message: 'Talent tidak ditemukan' });
     }
@@ -38,7 +36,7 @@ const getTalentDetail = async (req, res, next) => {
 
 const setAcademyCandidates = async (req, res, next) => {
     try {
-        const { talentIds } = req.body; // Diharapkan array of IDs: [1, 2, 3]
+        const { talentIds } = req.body;
         if (!talentIds || talentIds.length === 0) {
             return res.status(400).json({ message: 'Silakan pilih minimal satu talent' });
         }
