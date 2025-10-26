@@ -1,11 +1,15 @@
 const { Sequelize } = require('sequelize');
 require('dotenv').config();
 
-// Inisialisasi Sequelize untuk SQLite
 const sequelize = new Sequelize({
   dialect: 'sqlite',
-  storage: process.env.DB_STORAGE || 'database.sqlite', // Menggunakan path dari .env
-  logging: false, // Matikan logging SQL di console agar tidak terlalu ramai
+  storage: process.env.DB_STORAGE || 'database.sqlite',
+  logging: false,
+  // --- TAMBAHKAN BARIS INI ---
+  dialectOptions: {
+    timeout: 5000, // Waktu tunggu dalam milidetik (5 detik)
+  },
+  // ---------------------------
 });
 
 const connectDB = async () => {

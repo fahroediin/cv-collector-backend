@@ -1,47 +1,55 @@
+const { sequelize } = require('../../config/database'); // Impor instance sequelize untuk transaksi
 const { Talent, CV, Skill } = require('./talent.model');
 const { extractDataFromCV } = require('../../services/ocr.service');
 
 /**
  * Menangani logika untuk mencari atau membuat skill di database,
- * lalu menyinkronkannya dengan profil talent.
+ * lalu menyinkronkannya dengan profil talent sebagai bagian dari transaksi.
  * @param {object} talent - Instance Sequelize dari model Talent.
  * @param {string[]} skillNames - Array berisi nama skill dari hasil ekstraksi CV.
+ * @param {object} transaction - Instance transaksi Sequelize.
  */
-const syncTalentSkills = async (talent, skillNames) => {
+const syncTalentSkills = async (talent, skillNames, transaction) => {
   if (!skillNames || skillNames.length === 0) {
     return;
   }
 
   // Cari atau buat setiap skill dalam database
   const skillInstances = await Promise.all(
-    skillNames.map(name => Skill.findOrCreate({ where: { name } }))
+    skillNames.map(name => Skill.findOrCreate({
+      where: { name },
+      transaction: transaction // Lewatkan transaksi ke setiap operasi
+    }))
   );
 
   // `findOrCreate` mengembalikan array [instance, created], kita hanya butuh instance-nya
   const skills = skillInstances.map(result => result[0]);
 
-  // `setSkills` adalah method magic dari Sequelize untuk relasi many-to-many.
-  // Ini akan secara otomatis menghapus relasi lama dan menambahkan yang baru.
-  await talent.setSkills(skills);
-  console.log(`Skill untuk talent ${talent.email} telah disinkronkan.`);
+  // `setSkills` akan secara otomatis mengelola tabel pivot (TalentSkill)
+  await talent.setSkills(skills, { transaction: transaction }); // Lewatkan transaksi
+  console.log(`Skill untuk talent ${talent.email} telah disinkronkan dalam transaksi.`);
 };
 
 /**
- * Memproses file CV yang diunggah, mengekstrak data, membuat atau memperbarui
- * profil talent, dan menyimpan versi CV.
- * @param {string} filePath - Path ke file CV yang diunggah.
+ * Memproses file CV yang diunggah dalam satu transaksi database atomik.
+ * @param {string} filePath - Path ke file CV yang diungah.
  */
 const processUploadedCV = async (filePath) => {
+  // 1. Mulai transaksi
+  const t = await sequelize.transaction();
+
   try {
+    // Operasi non-database bisa dilakukan di luar, tapi lebih aman di dalam try/catch utama
     const data = await extractDataFromCV(filePath);
 
-    // Email adalah kunci. Jika tidak ditemukan, proses tidak bisa dilanjutkan.
     if (!data.email) {
       console.error(`Proses gagal: Email tidak dapat diekstrak dari ${filePath}. File dilewati.`);
+      // Tidak perlu rollback karena belum ada operasi DB, cukup hentikan proses
+      await t.commit(); // Commit transaksi kosong
       return;
     }
 
-    let talent = await Talent.findOne({ where: { email: data.email } });
+    let talent = await Talent.findOne({ where: { email: data.email }, transaction: t });
     let cvVersion = 1;
 
     if (talent) {
@@ -50,11 +58,12 @@ const processUploadedCV = async (filePath) => {
       await talent.update({
         name: data.name,
         phoneNumber: data.phoneNumber,
-      });
+      }, { transaction: t }); // Lewatkan transaksi
 
       const latestCV = await CV.findOne({
           where: { TalentId: talent.id },
-          order: [['version', 'DESC']]
+          order: [['version', 'DESC']],
+          transaction: t,
       });
       cvVersion = latestCV ? latestCV.version + 1 : 1;
     } else {
@@ -64,29 +73,35 @@ const processUploadedCV = async (filePath) => {
         name: data.name,
         email: data.email,
         phoneNumber: data.phoneNumber,
-      });
+      }, { transaction: t }); // Lewatkan transaksi
     }
 
-    // Simpan file CV sebagai versi baru
+    // Buat entri CV baru
     await CV.create({
       filePath: filePath,
       version: cvVersion,
       TalentId: talent.id,
-    });
+    }, { transaction: t }); // Lewatkan transaksi
     console.log(`CV versi ${cvVersion} untuk ${talent.email} berhasil disimpan.`);
 
     // Sinkronkan skill talent
-    await syncTalentSkills(talent, data.skills);
+    await syncTalentSkills(talent, data.skills, t);
+
+    // 2. Jika semua operasi di atas berhasil, commit transaksi
+    await t.commit();
+    console.log(`Transaksi untuk ${data.email} berhasil di-commit.`);
 
     return talent;
   } catch (error) {
-      console.error(`Terjadi error saat memproses file ${filePath}:`, error.message);
+    // 3. Jika ada satu saja error, batalkan semua operasi yang sudah dilakukan
+    await t.rollback();
+    console.error(`Terjadi error saat memproses file ${filePath}, transaksi di-rollback:`, error.message);
   }
 };
 
 /**
  * Mengambil semua data talent dari database beserta skill mereka.
- * @returns {Promise<Array>} Array berisi objek talent.
+ * (Operasi baca tidak memerlukan transaksi)
  */
 const getAllTalents = async () => {
   return await Talent.findAll({
@@ -95,42 +110,29 @@ const getAllTalents = async () => {
       model: Skill,
       as: 'skills',
       attributes: ['name'],
-      through: { attributes: [] } // Tidak menyertakan data dari tabel pivot
+      through: { attributes: [] }
     }],
     order: [['createdAt', 'DESC']],
   });
 };
 
 /**
- * Mengambil data detail satu talent berdasarkan ID, termasuk semua versi CV dan skill.
- * @param {number} id - ID dari talent.
- * @returns {Promise<object|null>} Objek talent atau null jika tidak ditemukan.
+ * Mengambil data detail satu talent berdasarkan ID.
+ * (Operasi baca tidak memerlukan transaksi)
  */
 const getTalentById = async (id) => {
   return await Talent.findByPk(id, {
     include: [
-      {
-        model: CV,
-        as: 'cvs', // Alias dari relasi
-        attributes: ['id', 'filePath', 'version', 'createdAt']
-      },
-      {
-        model: Skill,
-        as: 'skills',
-        attributes: ['name'],
-        through: { attributes: [] }
-      }
+      { model: CV, as: 'cvs', attributes: ['id', 'filePath', 'version', 'createdAt'] },
+      { model: Skill, as: 'skills', attributes: ['name'], through: { attributes: [] } }
     ],
-    order: [
-        [{ model: CV, as: 'cvs' }, 'version', 'DESC'] // Urutkan CV dari yang terbaru
-    ]
+    order: [[{ model: CV, as: 'cvs' }, 'version', 'DESC']]
   });
 };
 
 /**
  * Mengubah status beberapa talent menjadi 'Kandidat Academy'.
- * @param {number[]} talentIds - Array berisi ID talent yang akan diubah statusnya.
- * @returns {Promise<Array>} Hasil dari operasi update.
+ * (Operasi tunggal, transaksi tidak wajib tapi bisa ditambahkan untuk konsistensi)
  */
 const selectTalentsForAcademy = async (talentIds) => {
     const [affectedRows] = await Talent.update(

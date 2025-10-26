@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
+const fs = require('fs'); // <-- Tambahkan ini
+const path = require('path'); // <-- Tambahkan ini
 const { connectDB, sequelize } = require('./config/database');
 const talentRoutes = require('./api/talents/talent.routes');
 
@@ -24,12 +26,27 @@ app.use((err, req, res, next) => {
     res.status(500).send({ message: err.message || 'Terjadi kesalahan pada server' });
 });
 
+// =================================================================
+// BAGIAN YANG DITAMBAHKAN
+// =================================================================
+// Fungsi untuk memastikan direktori 'uploads' ada
+const ensureUploadsDirExists = () => {
+  const dir = path.join(__dirname, '..', 'uploads'); // Path ke folder uploads di root
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir);
+    console.log(`Direktori '${dir}' berhasil dibuat.`);
+  }
+};
+// =================================================================
+
 // Sinkronisasi Database dan Jalankan Server
 const startServer = async () => {
     await connectDB();
     // Sinkronisasi model dengan database
-    await sequelize.sync({ alter: true }); // Gunakan { force: true } untuk reset saat development
-    
+    await sequelize.sync({ alter: true });
+
+    ensureUploadsDirExists(); // <-- Panggil fungsi di sini
+
     app.listen(PORT, () => {
         console.log(`Server berjalan di http://localhost:${PORT}`);
     });
