@@ -1,0 +1,28 @@
+# CV Collector Backend Rules
+
+## Tech Stack
+- Runtime: Node.js + Express
+- Database: SQLite
+- Language: JavaScript
+- OCR: Tesseract.js
+
+## Project Structure
+- src/api/ - API routes
+- src/services/ - Business logic
+- src/skills/ - Custom skills
+- uploads/ - File storage
+
+## Naming Conventions
+- Files: kebab-case (talent.service.js)
+- Functions: camelCase (getTalentById)
+- Routes: kebab-case (/api/talents)
+
+## Best Practices
+- Validasi input di controller
+- Error handling dengan try-catch
+- Response format konsisten: { success, data, error }
+
+## Code Style
+- Gunakan async/await (bukan .then())
+- Destructuring untuk clean code
+- Arrow functions untuk callbacks

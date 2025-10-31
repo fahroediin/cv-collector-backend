@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const talentController = require('./talent.controller');
-const upload = require('../../middleware/upload');
+const { upload } = require('../../middleware/upload');
 
-// US-01: Mengunggah CV
+// US-01: Mengunggah CV (dengan rate limiting dan file size validation)
 router.post('/upload', upload.single('cv'), talentController.uploadCV);
 
 // US-03: Melihat daftar talent
